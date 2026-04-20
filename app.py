@@ -5,21 +5,41 @@ import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
+# ---------------- UI STYLE ----------------
+st.set_page_config(page_title="Smart SEO AI", layout="centered")
+
+st.markdown("""
+<style>
+body { background-color: #0e1117; }
+h1 { color: #00ffcc; text-align: center; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🚀 Smart SEO AI SaaS Tool")
+
 # ---------------- AI SUGGESTIONS ----------------
 def ai_suggestions(issues):
     suggestions = []
+
     for issue in issues:
         if "Title" in issue:
-            suggestions.append("Add SEO-friendly title (50-60 chars).")
+            suggestions.append("Add SEO optimized title (50-60 chars).")
         elif "Meta" in issue:
-            suggestions.append("Add meta description (150-160 chars).")
+            suggestions.append("Add proper meta description (150-160 chars).")
         elif "H1" in issue:
-            suggestions.append("Add proper H1 tag.")
+            suggestions.append("Add one clear H1 tag.")
         elif "Content" in issue:
             suggestions.append("Increase high-quality content (300+ words).")
+        elif "Images" in issue:
+            suggestions.append("Add ALT text for images.")
+        elif "Links" in issue:
+            suggestions.append("Add internal linking structure.")
+
     if not suggestions:
-        suggestions.append("SEO is good. Focus on backlinks & content updates.")
+        suggestions.append("SEO is excellent. Focus on backlinks & updates.")
+
     return suggestions
+
 
 # ---------------- ANALYZER ----------------
 def analyze_site(soup, text, url=""):
@@ -41,14 +61,27 @@ def analyze_site(soup, text, url=""):
     if word_count < 300:
         issues.append("Low Content")
 
-    score = max(0, 100 - len(issues) * 15)
+    images = soup.find_all("img")
+    missing_alt = sum(1 for img in images if not img.get("alt"))
+
+    if missing_alt > 0:
+        issues.append("Images Missing ALT Text")
+
+    links = soup.find_all("a")
+    if len(links) < 5:
+        issues.append("Too Few Internal Links")
+
+    score = max(0, 100 - len(issues) * 10)
 
     return {
         "score": score,
         "issues": issues,
         "suggestions": ai_suggestions(issues),
-        "word_count": word_count
+        "word_count": word_count,
+        "images": len(images),
+        "links": len(links)
     }
+
 
 # ---------------- PDF REPORT ----------------
 def generate_pdf(data):
@@ -57,10 +90,10 @@ def generate_pdf(data):
     styles = getSampleStyleSheet()
     story = []
 
-    story.append(Paragraph("SEO REPORT", styles["Title"]))
+    story.append(Paragraph("SMART SEO AI REPORT", styles["Title"]))
     story.append(Spacer(1, 12))
 
-    story.append(Paragraph(f"Score: {data['score']}", styles["Normal"]))
+    story.append(Paragraph(f"SEO Score: {data['score']}/100", styles["Normal"]))
     story.append(Spacer(1, 12))
 
     story.append(Paragraph("Issues:", styles["Heading2"]))
@@ -68,6 +101,7 @@ def generate_pdf(data):
         story.append(Paragraph(f"- {i}", styles["Normal"]))
 
     story.append(Spacer(1, 12))
+
     story.append(Paragraph("AI Suggestions:", styles["Heading2"]))
     for s in data["suggestions"]:
         story.append(Paragraph(f"- {s}", styles["Normal"]))
@@ -75,30 +109,16 @@ def generate_pdf(data):
     doc.build(story)
     return file
 
-# ---------------- CHATBOT ----------------
-def chatbot_response(msg, data):
-    msg = msg.lower()
 
-    if "score" in msg:
-        return f"Your SEO score is {data['score']}"
-
-    if "fix" in msg:
-        return "Fix: " + ", ".join(data["issues"])
-
-    if "help" in msg:
-        return "Improve title, meta description and content."
-
-    return "Ask about score, fixes, or SEO tips."
-
-# ---------------- STREAMLIT UI ----------------
-st.title("🚀 Smart SEO AI PRO Tool")
-
-url = st.text_input("Enter Website URL")
-
+# ---------------- URL FIX ----------------
 def fix_url(url):
     if not url.startswith("http"):
         return "https://" + url
     return url
+
+
+# ---------------- INPUT ----------------
+url = st.text_input("Enter Website URL")
 
 if st.button("Analyze"):
 
@@ -112,43 +132,41 @@ if st.button("Analyze"):
 
             data = analyze_site(soup, soup.get_text(), url)
 
-            st.subheader(f"🎯 Score: {data['score']}/100")
+            # ---------------- SCORE ----------------
+            st.subheader(f"🎯 SEO Score: {data['score']}/100")
 
-            st.write("## Issues")
+            st.write("## ⚠️ Issues")
             for i in data["issues"]:
                 st.write("•", i)
 
-            st.write("## AI Suggestions")
+            st.write("## 🤖 AI Suggestions")
             for s in data["suggestions"]:
                 st.write("👉", s)
 
-            # ---------------- DASHBOARD ----------------
-            st.write("## 📊 Dashboard")
-
-            labels = ["Good", "Issues"]
-            values = [data["score"], 100 - data["score"]]
+            # ---------------- GRAPH ----------------
+            st.write("## 📊 SEO Dashboard")
 
             fig, ax = plt.subplots()
-            ax.bar(labels, values)
+            ax.bar(["SEO Score", "Issues"], [data["score"], len(data["issues"])])
+            ax.set_title("SEO Performance Overview")
+            ax.set_ylabel("Value")
             st.pyplot(fig)
 
             # ---------------- PDF ----------------
-            if st.button("Download PDF Report"):
-                file = generate_pdf(data)
-                with open(file, "rb") as f:
-                    st.download_button("Download Report", f, file_name="seo_report.pdf")
+            st.write("## 📄 Download Report")
 
-            # ---------------- CHATBOT ----------------
-            st.write("## 🤖 SEO Chatbot")
+            pdf_file = generate_pdf(data)
 
-            user_msg = st.text_input("Ask SEO question")
-
-            if user_msg:
-                reply = chatbot_response(user_msg, data)
-                st.write("🤖", reply)
+            with open(pdf_file, "rb") as f:
+                st.download_button(
+                    label="📥 Download SEO Report",
+                    data=f,
+                    file_name="seo_report.pdf",
+                    mime="application/pdf"
+                )
 
         except:
             st.error("Error loading website")
 
     else:
-        st.warning("Enter URL")
+        st.warning("Enter URL first")
